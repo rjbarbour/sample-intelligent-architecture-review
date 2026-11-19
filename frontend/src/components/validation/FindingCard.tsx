@@ -37,49 +37,6 @@ const severityConfig: Record<
   },
 };
 
-const categoryLabels: Record<string, string> = {
-  redundancy: "Redundancy",
-  availability: "Availability",
-  data: "Data Protection",
-  traffic_management: "Traffic Management",
-  scalability: "Scalability",
-  recovery: "Recovery",
-  observability: "Observability",
-  failover: "Failover",
-  resilience: "Resilience",
-  security: "Security",
-  network: "Network",
-  general: "General",
-  replication: "Replication",
-};
-
-/** Title-case any category/layer key. Mirrors the helpers in
- *  ComplianceMatrix, validation/detail/client, and ValidationConfigDialog
- *  so unknown values like "general" or "replication" don't leak as raw
- *  lowercase. Falls back to splitting on _/-/space and capitalising. */
-function categoryLabel(raw: string): string {
-  if (!raw) return "Other";
-  if (categoryLabels[raw]) return categoryLabels[raw];
-  return raw
-    .split(/[_\s-]+/)
-    .map((w) => (w.length === 0 ? "" : w[0].toUpperCase() + w.slice(1)))
-    .join(" ");
-}
-
-function inferSourceType(finding: Finding): "text" | "diagram" {
-  const combined = (finding.evidence + finding.title + finding.description).toLowerCase();
-  if (
-    combined.includes("diagram") ||
-    combined.includes("topology") ||
-    combined.includes("figure") ||
-    combined.includes("architecture diagram") ||
-    combined.includes("component diagram")
-  ) {
-    return "diagram";
-  }
-  return "text";
-}
-
 function inferPageReference(finding: Finding): string | null {
   // Try to extract page references from evidence text
   const combined = finding.evidence + " " + finding.description;
@@ -93,24 +50,6 @@ function inferPageReference(finding: Finding): string | null {
   if (figureMatch) parts.push(`Figure ${figureMatch[1]}`);
 
   return parts.length > 0 ? parts.join(", ") : null;
-}
-
-function inferCategory(requirementId: string): string {
-  const lower = requirementId.toLowerCase();
-  for (const key of Object.keys(categoryLabels)) {
-    if (lower.includes(key.replace("_", ""))) return key;
-    if (lower.includes(key)) return key;
-  }
-  if (lower.includes("redund")) return "redundancy";
-  if (lower.includes("recov") || lower.includes("rto") || lower.includes("rpo")) return "recovery";
-  if (lower.includes("secur") || lower.includes("encrypt") || lower.includes("auth")) return "security";
-  if (lower.includes("fail") || lower.includes("switch")) return "failover";
-  if (lower.includes("scale") || lower.includes("auto")) return "scalability";
-  if (lower.includes("observ") || lower.includes("monitor") || lower.includes("alert")) return "observability";
-  if (lower.includes("network") || lower.includes("dns") || lower.includes("lb")) return "network";
-  if (lower.includes("data") || lower.includes("backup") || lower.includes("replicat")) return "data";
-  if (lower.includes("traffic") || lower.includes("route")) return "traffic_management";
-  return "availability";
 }
 
 const statusConfig: Record<string, { label: string; icon: string; className: string; borderClass: string }> = {
@@ -170,10 +109,6 @@ export function FindingCard({
   const severity = severityConfig[finding.severity] || severityConfig.info;
   const status = statusConfig[finding.status] || statusConfig.warning;
   const pageReference = inferPageReference(finding);
-  const category = inferCategory(finding.requirementId);
-  // Suppress the unused warning while keeping the helper available.
-  void inferSourceType;
-
   return (
     <Card className={`border ${status.borderClass}`}>
       <CardHeader>
@@ -190,42 +125,8 @@ export function FindingCard({
               <span className="text-[10px] font-mono text-muted-foreground">
                 {finding.requirementId}
               </span>
-              {/* Rule type chip (founding/substitution/exception). */}
-              {finding.ruleType && (
-                <span
-                  className={
-                    "rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-normal " +
-                    (finding.ruleType === "founding"
-                      ? "border-slate-300 bg-slate-100 text-slate-600 dark:border-white/10 dark:bg-white/8 dark:text-slate-300"
-                      : finding.ruleType === "substitution"
-                      ? "border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/10 dark:text-sky-300"
-                      : "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-300")
-                  }
-                >
-                  {finding.ruleType}
-                </span>
-              )}
-              {/* Page reference */}
               {pageReference && (
-                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                  {pageReference}
-                </span>
-              )}
-              {/* Additional pages from chunked validation. Quietly
-                  conveys that other chunks corroborate this verdict
-                  without bloating the evidence prose. */}
-              {finding.alsoSeenPages && finding.alsoSeenPages.length > 0 && (
-                <>
-                  <span className="text-[10px] text-muted-foreground">also</span>
-                  {finding.alsoSeenPages.map((ref) => (
-                    <span
-                      key={ref}
-                      className="font-mono text-[10px] text-muted-foreground bg-muted/60 border border-border/50 px-1.5 py-0.5 rounded"
-                    >
-                      {ref}
-                    </span>
-                  ))}
-                </>
+                <span className="text-xs text-muted-foreground">{pageReference}</span>
               )}
             </div>
             <CardTitle className="text-sm">{finding.title}</CardTitle>
@@ -233,32 +134,11 @@ export function FindingCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">{finding.description}</p>
+        {finding.description && finding.description !== finding.evidence && (
+          <p className="text-sm text-muted-foreground">{finding.description}</p>
+        )}
 
-        {/* Standard Reference - Enhanced */}
-        <div className="rounded-md border border-[var(--color-status-info)]/20 bg-[var(--color-status-info)]/5 p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-medium text-[var(--color-status-info)]">
-              Standard: {finding.requirementId}
-            </span>
-            <Link href="/standards" className="text-[10px] text-[var(--color-status-info)] hover:underline">
-              View all standards
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="text-[9px] bg-[var(--color-status-info)]/10 text-[var(--color-status-info)] border-[var(--color-status-info)]/20"
-            >
-              {categoryLabel(category)}
-            </Badge>
-            <span className="text-[10px] text-[var(--color-status-info)]/70">
-              Validates against {finding.requirementId} ({categoryLabel(category)} category)
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-md bg-muted/50 p-3 space-y-2">
+        <div className="space-y-2 border-l-2 border-border pl-3">
           <div>
             <span className="text-xs font-medium text-[var(--color-ink)]">
               Evidence
@@ -277,12 +157,17 @@ export function FindingCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Pattern:</span>
-          <Badge variant="secondary" className="text-xs">
-            {finding.pattern}
-          </Badge>
-        </div>
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer font-medium">Rule details</summary>
+          <div className="mt-2 space-y-1 pl-3">
+            {finding.pattern && finding.pattern !== finding.requirementId && <p>Pattern: {finding.pattern}</p>}
+            {finding.ruleType && <p>Rule type: {finding.ruleType}</p>}
+            {!!finding.alsoSeenPages?.length && (
+              <p>Additional evidence: {finding.alsoSeenPages.join(", ")}</p>
+            )}
+            <Link href="/standards" className="inline-block underline">View all standards</Link>
+          </div>
+        </details>
 
         {/* Substitution rescue callout. The founding rule
             failed, but a substitution rule passed and rescued the
@@ -336,11 +221,6 @@ export function FindingCard({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M9 8h6M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
                 </svg>
                 View trace
-                <span className="ml-1 font-mono text-[10px] text-slate-400 dark:text-slate-500">
-                  {finding.trace.latency_ms}ms ·{" "}
-                  {finding.trace.input_tokens.toLocaleString()}/
-                  {finding.trace.output_tokens.toLocaleString()} tok
-                </span>
               </button>
             )}
             {onOpenChat && (
