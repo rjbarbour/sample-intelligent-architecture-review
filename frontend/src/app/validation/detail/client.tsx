@@ -657,12 +657,14 @@ function ValidationDetailInner() {
             <CardTitle className="text-sm font-semibold">Findings summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 px-5 pb-5">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <FindingTile label="Critical fails" value={findingCounts.critical} tone="rose" />
-              <FindingTile label="High fails"     value={findingCounts.high}     tone="orange" />
-              <FindingTile label="Passed"         value={findingCounts.pass}     tone="emerald" />
-              <FindingTile label="Warnings"       value={findingCounts.warning}  tone="amber" />
-            </div>
+            <p className="text-sm">
+              {findingCounts.fail} failed · {findingCounts.pass} passed · {findingCounts.warning} warnings
+            </p>
+            {(findingCounts.critical > 0 || findingCounts.high > 0) && (
+              <p className="text-sm font-medium text-rose-700 dark:text-rose-300">
+                Failed checks by priority: {findingCounts.critical} critical · {findingCounts.high} high
+              </p>
+            )}
 
             {/* Tier + scope filter summary. When the per-dimension
                 breakdown is present, surface it so the user
@@ -693,83 +695,13 @@ function ValidationDetailInner() {
               </div>
             )}
 
-            {/* Pass/Fail bar */}
-            {findings.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-                    Compliance distribution
-                  </span>
-                  <span className="font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400">
-                    {findings.length} checks
-                  </span>
-                </div>
-                <div className="flex h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/8">
-                  {findingCounts.pass > 0 && (
-                    <div
-                      className="bg-emerald-500 transition-all"
-                      style={{ width: `${(findingCounts.pass / findings.length) * 100}%` }}
-                      title={`${findingCounts.pass} passed`}
-                    />
-                  )}
-                  {findingCounts.warning > 0 && (
-                    <div
-                      className="bg-amber-500 transition-all"
-                      style={{ width: `${(findingCounts.warning / findings.length) * 100}%` }}
-                      title={`${findingCounts.warning} warnings`}
-                    />
-                  )}
-                  {findingCounts.fail > 0 && (
-                    <div
-                      className="bg-rose-500 transition-all"
-                      style={{ width: `${(findingCounts.fail / findings.length) * 100}%` }}
-                      title={`${findingCounts.fail} failed`}
-                    />
-                  )}
-                  {findingCounts.notAddressed > 0 && (
-                    <div
-                      className="bg-slate-300 transition-all dark:bg-white/20"
-                      style={{ width: `${(findingCounts.notAddressed / findings.length) * 100}%` }}
-                      title={`${findingCounts.notAddressed} not addressed`}
-                    />
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm bg-emerald-500" /> Pass
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm bg-amber-500" /> Warning
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-sm bg-rose-500" /> Fail
-                  </span>
-                  {findingCounts.notAddressed > 0 && (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-sm bg-slate-300 dark:bg-white/20" /> Not addressed
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Standards evaluated */}
             {patterns.length > 0 && (
-              <div>
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-                  Standards evaluated <span className="font-mono normal-case">{patterns.length}</span>
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {patterns.map((pattern) => (
-                    <span
-                      key={pattern}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[10px] font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
-                    >
-                      {pattern}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              <details className="text-sm text-muted-foreground">
+                <summary className="cursor-pointer">Standards evaluated ({patterns.length})</summary>
+                <ul className="mt-2 list-inside list-disc space-y-1">
+                  {patterns.map((pattern) => <li key={pattern}>{pattern}</li>)}
+                </ul>
+              </details>
             )}
           </CardContent>
         </Card>
@@ -1001,6 +933,7 @@ function ValidationDetailInner() {
                 return (
                   <Card key={category} className="overflow-hidden">
                     <button
+                      aria-expanded={isExpanded}
                       onClick={() => toggleCategory(category)}
                       className="flex w-full items-center justify-between rounded-t-xl px-4 py-3 text-left transition-colors hover:bg-slate-50/60 dark:hover:bg-white/[0.03]"
                     >
@@ -1102,29 +1035,6 @@ function ValidationDetailInner() {
         validationId={validation.validation_id}
         onClose={() => setChatFinding(null)}
       />
-    </div>
-  );
-}
-
-type FindingTileTone = "rose" | "orange" | "emerald" | "amber";
-const FINDING_TILE_TONE: Record<FindingTileTone, { dot: string; value: string }> = {
-  rose:    { dot: "bg-rose-500",    value: "text-rose-700 dark:text-rose-300" },
-  orange:  { dot: "bg-orange-500",  value: "text-orange-700 dark:text-orange-300" },
-  emerald: { dot: "bg-emerald-500", value: "text-emerald-700 dark:text-emerald-300" },
-  amber:   { dot: "bg-amber-500",   value: "text-amber-700 dark:text-amber-300" },
-};
-
-function FindingTile({ label, value, tone }: { label: string; value: number; tone: FindingTileTone }) {
-  const c = FINDING_TILE_TONE[tone];
-  return (
-    <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 dark:border-white/8 dark:bg-white/[0.02]">
-      <div className="flex items-center gap-1.5">
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${c.dot}`} aria-hidden />
-        <span className="text-[10px] font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-          {label}
-        </span>
-      </div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${c.value}`}>{value}</div>
     </div>
   );
 }

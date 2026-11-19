@@ -185,23 +185,16 @@ export default function ValidationPage() {
   const totalCritical = validations.reduce((sum, v) => sum + v.findingCounts.critical, 0);
   const uniqueDocs = new Set(validations.map((v) => v.documentId)).size;
 
-  const subtitle = validations.length === 0
-    ? "Run a validation against an SDD to see results here."
-    : `${validations.length} run${validations.length === 1 ? "" : "s"} · ${statusCounts.completed} completed · ${avgScore}% avg score`;
-
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
-      <PageHero title="Validations" subtitle={subtitle} />
-
-      {/* KPI Tiles */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        <ValTile label="Total" value={validations.length} accent="brand" />
-        <ValTile label="Completed" value={statusCounts.completed} accent="pass" />
-        <ValTile label="In progress" value={statusCounts.pending} accent="info" />
-        <ValTile label="Avg score" value={`${avgScore}%`} accent="brand" />
-        <ValTile label="Critical issues" value={totalCritical} accent="critical" />
-        <ValTile label="Docs validated" value={uniqueDocs} accent="info" />
-      </div>
+      <PageHero title="Validations" />
+      {validations.length > 0 && (
+        <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <span>{uniqueDocs} {uniqueDocs === 1 ? "document" : "documents"} reviewed</span>
+          {scoredRuns.length > 0 && <span>Average score {avgScore}%</span>}
+          {totalCritical > 0 && <span>{totalCritical} critical {totalCritical === 1 ? "issue" : "issues"}</span>}
+        </p>
+      )}
 
       {/* Filter bar */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-white/8 dark:bg-white/[0.02]">
@@ -223,6 +216,7 @@ export default function ValidationPage() {
               return (
                 <button
                   key={val}
+                  aria-pressed={isActive}
                   onClick={() => setStatusFilter(val)}
                   className={
                     "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-all " +
@@ -303,9 +297,11 @@ export default function ValidationPage() {
       {/* Validation List */}
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 py-10 text-center dark:border-white/10 dark:bg-white/[0.02]">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No validations match your filters</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{validations.length ? "No validations match your filters" : "No validations yet"}</p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Adjust the filters above or run a new validation from the document detail page.
+            {validations.length ? "Try a different status or document." : (
+              <Link href="/documents" className="underline">Choose a document to validate</Link>
+            )}
           </p>
         </div>
       ) : viewMode === "grid" ? (
@@ -492,29 +488,6 @@ export default function ValidationPage() {
           </table>
         </div>
       )}
-    </div>
-  );
-}
-
-type ValAccent = "brand" | "pass" | "info" | "critical";
-const VAL_ACCENT: Record<ValAccent, { dot: string; value: string }> = {
-  brand:    { dot: "bg-[var(--color-brand-primary)]", value: "text-slate-900 dark:text-slate-50" },
-  pass:     { dot: "bg-emerald-500", value: "text-emerald-700 dark:text-emerald-300" },
-  info:     { dot: "bg-sky-500",     value: "text-sky-700 dark:text-sky-300" },
-  critical: { dot: "bg-rose-500",    value: "text-rose-700 dark:text-rose-300" },
-};
-
-function ValTile({ label, value, accent }: { label: string; value: number | string; accent: ValAccent }) {
-  const c = VAL_ACCENT[accent];
-  return (
-    <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 transition-colors hover:border-slate-300/80 dark:border-white/8 dark:bg-white/[0.02] dark:hover:border-white/12">
-      <div className="flex items-center gap-1.5">
-        <span className={`inline-block h-1.5 w-1.5 rounded-full ${c.dot}`} aria-hidden />
-        <span className="text-[10px] font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
-          {label}
-        </span>
-      </div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${c.value}`}>{value}</div>
     </div>
   );
 }
