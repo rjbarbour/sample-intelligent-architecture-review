@@ -174,11 +174,8 @@ data "aws_iam_policy_document" "trail_assume" {
   }
 }
 
-resource "aws_iam_role" "trail_to_logs" {
-  name               = "${var.project_name}-${var.environment}-cloudtrail-logs"
-  assume_role_policy = data.aws_iam_policy_document.trail_assume.json
-
-  tags = var.tags
+data "aws_iam_role" "trail_to_logs" {
+  name = "${var.project_name}-${var.environment}-cloudtrail-logs"
 }
 
 data "aws_iam_policy_document" "trail_to_logs" {
@@ -192,11 +189,6 @@ data "aws_iam_policy_document" "trail_to_logs" {
   }
 }
 
-resource "aws_iam_role_policy" "trail_to_logs" {
-  name   = "${var.project_name}-${var.environment}-cloudtrail-logs"
-  role   = aws_iam_role.trail_to_logs.id
-  policy = data.aws_iam_policy_document.trail_to_logs.json
-}
 
 ###############################################################################
 # The trail
@@ -213,7 +205,7 @@ resource "aws_cloudtrail" "main" {
   enable_log_file_validation = true
 
   cloud_watch_logs_group_arn = "${aws_cloudwatch_log_group.trail.arn}:*"
-  cloud_watch_logs_role_arn  = aws_iam_role.trail_to_logs.arn
+  cloud_watch_logs_role_arn  = data.aws_iam_role.trail_to_logs.arn
 
   advanced_event_selector {
     name = "Management events"

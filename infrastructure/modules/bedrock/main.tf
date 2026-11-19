@@ -73,19 +73,7 @@ data "aws_iam_policy_document" "bedrock_access" {
   }
 }
 
-resource "aws_iam_policy" "bedrock_access" {
-  name        = "${var.project_name}-${var.environment}-bedrock-access"
-  description = "Policy for invoking Bedrock Claude models"
-  policy      = data.aws_iam_policy_document.bedrock_access.json
-
-  tags = var.tags
-}
 
 ###############################################################################
 # Attach Bedrock Policy to ECS Task Role
 ###############################################################################
-
-resource "aws_iam_role_policy_attachment" "bedrock_to_task_role" {
-  role       = var.ecs_task_role_name
-  policy_arn = aws_iam_policy.bedrock_access.arn
-}

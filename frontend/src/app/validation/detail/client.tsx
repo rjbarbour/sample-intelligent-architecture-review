@@ -12,6 +12,7 @@ import { FindingCard } from "@/components/validation/FindingCard";
 import { ComplianceMatrix } from "@/components/validation/ComplianceMatrix";
 import { FindingTraceDrawer } from "@/components/validation/FindingTraceDrawer";
 import { FindingChatPanel } from "@/components/validation/FindingChatPanel";
+import { ValidationConfigDialog } from "@/components/validation/ValidationConfigDialog";
 import { api, HostingScope, ValidationDetailResponse, StandardItem } from "@/lib/api";
 import type { Severity, Finding } from "@/lib/mock-data";
 import { useRole } from "@/lib/use-role";
@@ -86,7 +87,8 @@ function ValidationDetailInner() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
-  const { email: myEmail, isAdmin } = useRole();
+  const [rerunOpen, setRerunOpen] = useState(false);
+  const { email: myEmail, isAdmin, canValidate } = useRole();
   // Mirrors require_owner_or_admin on POST /api/validations/{id}/cancel: only
   // whoever started the run may stop it, since it bills Bedrock until it does.
   // Runs with no recorded owner predate the control and stay cancellable.
@@ -277,6 +279,27 @@ function ValidationDetailInner() {
     );
   }
 
+  const rerunAction = canValidate && (
+    <>
+      <button
+        type="button"
+        onClick={() => setRerunOpen(true)}
+        className="inline-flex items-center rounded-lg bg-[var(--color-brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--color-brand-primary-hover)]"
+      >
+        Run again
+      </button>
+      <ValidationConfigDialog
+        open={rerunOpen}
+        onOpenChange={setRerunOpen}
+        documentId={validation.document_id}
+        forceNewRun
+        onValidationStarted={(validationId) => {
+          window.location.assign(`/validation/detail?id=${encodeURIComponent(validationId)}`);
+        }}
+      />
+    </>
+  );
+
   // While the validation is still running, show a progress page.
   if (validation.status === "pending") {
     const evaluated = validation.evaluated_count ?? 0;
@@ -385,9 +408,9 @@ function ValidationDetailInner() {
             Validation cancelled
           </p>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            This run was cancelled before completing. Start a new validation from
-            the document page to try again.
+            This run was cancelled before completing.
           </p>
+          <div className="mt-3">{rerunAction}</div>
         </div>
       </div>
     );
@@ -420,6 +443,7 @@ function ValidationDetailInner() {
             <div className="min-w-0 flex-1">
               <p className="text-base font-semibold text-rose-700 dark:text-rose-200">Validation failed</p>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">{validation.error_message || "An unknown error occurred."}</p>
+              <div className="mt-3">{rerunAction}</div>
             </div>
           </div>
         </div>
@@ -517,7 +541,7 @@ function ValidationDetailInner() {
           </svg>
           Back to Validations
         </Link>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1.5">
           <h1 className="break-words text-2xl font-semibold tracking-normal text-slate-900 dark:text-slate-50">
             {documentName}
@@ -563,6 +587,7 @@ function ValidationDetailInner() {
         </div>
         {/* Export — download the report as CSV or PDF. */}
         <div className="flex shrink-0 flex-col items-end gap-1">
+          {rerunAction}
           <div className="flex items-center gap-2">
             <button
               type="button"

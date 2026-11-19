@@ -37,6 +37,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   documentId: string;
+  forceNewRun?: boolean;
   /** Called once a validation has been kicked off. Receives the validation id. */
   onValidationStarted: (validationId: string) => void;
 }
@@ -63,6 +64,7 @@ export function ValidationConfigDialog({
   open,
   onOpenChange,
   documentId,
+  forceNewRun = false,
   onValidationStarted,
 }: Props) {
   const [standards, setStandards] = useState<StandardItem[]>([]);
@@ -112,7 +114,7 @@ export function ValidationConfigDialog({
       setTierOverride(null);
       // Reset the force-rerun opt-in each time the dialog opens, so a
       // previous tick doesn't silently force fresh (uncached) runs later.
-      setForceRerun(false);
+      setForceRerun(forceNewRun);
       void Promise.all([
         api.listStandards(),
         api.getDocument(documentId).catch(() => null),
@@ -138,7 +140,7 @@ export function ValidationConfigDialog({
       cancelled = true;
       window.clearTimeout(kickoff);
     };
-  }, [open, documentId]);
+  }, [open, documentId, forceNewRun]);
 
   /** Effective tier for filtering — override takes precedence so the
    *  preview matches what the validator will actually run. */
@@ -810,7 +812,7 @@ export function ValidationConfigDialog({
               );
             })()}
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <label
               className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none"
               title="Run a fresh validation even if an identical one is cached. Use to re-validate after updating the document."

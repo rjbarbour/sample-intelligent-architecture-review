@@ -307,3 +307,7 @@ before handling real documents; see
 
 This library is licensed under the MIT-0 License. See the [LICENSE](LICENSE)
 file.
+
+## Fork deployment changes
+
+See [fork changes and deployment assumptions](docs/fork-changes.md) for the preserved ACR changes, and [staged power control](ops/power/README.md) for the separate off/on preparation.

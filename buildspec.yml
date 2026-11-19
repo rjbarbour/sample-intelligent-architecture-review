@@ -1,0 +1,15 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - curl -fsSLo /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.10.5/terraform_1.10.5_linux_amd64.zip
+      - unzip -oq /tmp/terraform.zip -d /usr/local/bin
+      - terraform version
+      - node --version
+      - docker info >/dev/null
+  build:
+    commands:
+      - export ENVIRONMENT=dev AWS_REGION=us-east-1
+      - ./deploy.sh all
+      - cd infrastructure && terraform output -json > /tmp/acr-outputs.json
+      - aws s3 cp /tmp/acr-outputs.json s3://arch-review-deploy-551828031976-us-east-1/outputs.json

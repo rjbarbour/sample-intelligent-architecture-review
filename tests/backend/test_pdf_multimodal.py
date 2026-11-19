@@ -283,6 +283,27 @@ def test_build_whole_doc_message_includes_all_text_and_capped_images():
     assert any("HA-001" in b["text"] for b in text_blocks)
 
 
+def test_whole_doc_image_budget_prioritises_diagrams(monkeypatch):
+    from app.services import pdf_multimodal
+
+    monkeypatch.setattr(pdf_multimodal, "MAX_IMAGE_PAYLOAD_BYTES", 8)
+    message = pdf_multimodal._build_whole_doc_message(
+        page_texts=["intro", "body", "diagram", "conclusion"],
+        page_pngs=[b"abc", b"large-image", b"def", b"ghi"],
+        diagram_page_indices=[2],
+        rule_batch=[{"id": "HA-001"}],
+    )
+
+    images = [
+        block["image"]["source"]["bytes"]
+        for block in message["content"]
+        if "image" in block
+    ]
+    assert images == [b"abc", b"def"]
+    assert "Page images attached (in order): [1, 3]" in message["content"][0]["text"]
+    assert "[Page 4]" in message["content"][0]["text"]
+
+
 def test_build_whole_doc_message_handles_no_diagrams():
     """Pure-text PDFs (or PPTX where diagrams already live in slide
     text) yield an image-free message. Validator still works text-only."""

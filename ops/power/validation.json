@@ -1,0 +1,99 @@
+{
+  "plan": {
+    "mode": "OFF",
+    "changes": [
+      {
+        "address": "module.cloudfront.aws_cloudfront_distribution.frontend",
+        "actions": [
+          "update"
+        ]
+      },
+      {
+        "address": "module.ecs.aws_appautoscaling_target.ecs",
+        "actions": [
+          "update"
+        ]
+      },
+      {
+        "address": "module.ecs.aws_ecs_service.app",
+        "actions": [
+          "update"
+        ]
+      },
+      {
+        "address": "module.ecs.aws_ecs_service.pptx_converter",
+        "actions": [
+          "update"
+        ]
+      },
+      {
+        "address": "module.ecs.aws_lb.main[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.ecs.aws_lb_listener.http[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.ecs.aws_lb_listener_rule.verified_origin_http[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.knowledge_base.aws_bedrockagent_data_source.s3[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.knowledge_base.aws_bedrockagent_knowledge_base.main[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.knowledge_base.aws_opensearchserverless_collection.kb[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.knowledge_base.null_resource.kb_index_bootstrap[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.vpc.aws_eip.nat[0]",
+        "actions": [
+          "delete"
+        ]
+      },
+      {
+        "address": "module.vpc.aws_nat_gateway.main[0]",
+        "actions": [
+          "delete"
+        ]
+      }
+    ]
+  },
+  "live": [
+    {
+      "name": "arch-review-dev-service",
+      "desired": 1,
+      "running": 1,
+      "task": "arn:aws:ecs:us-east-1:551828031976:task-definition/arch-review-dev-app:3"
+    },
+    {
+      "name": "arch-review-dev-pptx-converter",
+      "desired": 1,
+      "running": 1,
+      "task": "arn:aws:ecs:us-east-1:551828031976:task-definition/arch-review-dev-pptx-converter:1"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+infrastructure/tfvars/*.tfvars
+!infrastructure/tfvars/*.example.tfvars
+infrastructure/backend-config/*.s3.tfbackend
+!infrastructure/backend-config/*.example.s3.tfbackend
+validation-private.json

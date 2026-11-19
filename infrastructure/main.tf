@@ -109,7 +109,10 @@ module "ecs" {
   # Tracing: the task role needs X-Ray write access to export OTel spans.
   enable_tracing = true
 
-  container_environment = concat([
+  container_environment = concat([for stage in [
+    "TIER_CLASSIFIER_MODEL_ID", "SCOPE_CLASSIFIER_MODEL_ID",
+    "CURATOR_MODEL_ID", "EXTRACTION_DIAGRAM_MODEL_ID"
+  ] : { name = stage, value = "us.anthropic.claude-sonnet-4-6" }], [
     {
       name  = "ENVIRONMENT"
       value = var.environment
@@ -500,18 +503,6 @@ resource "aws_ssm_parameter" "cognito_saml_provider" {
 # runtime the application does not need (see docs/agentcore-decision.md).
 ###############################################################################
 
-module "tracing" {
-  source = "./modules/tracing"
-
-  project_name = var.project_name
-  environment  = var.environment
-  aws_region   = var.aws_region
-  # Sampling stays configurable because Transaction Search is billed on ingested
-  # spans; 100% is right for dev and low-traffic compliance review, not for a
-  # high-volume production account.
-  span_sampling_percentage = var.trace_sampling_percentage
-  tags                     = local.common_tags
-}
 
 ###############################################################################
 # Monitoring

@@ -36,21 +36,15 @@ data "aws_iam_policy_document" "assume" {
   }
 }
 
-resource "aws_iam_role" "pretoken" {
-  name               = "${local.function_name}-role"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+data "aws_iam_role" "pretoken" {
+  name = "${local.function_name}-role"
 }
 
 # Logs only — the handler makes no AWS calls.
-resource "aws_iam_role_policy_attachment" "logs" {
-  role       = aws_iam_role.pretoken.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
 
 resource "aws_lambda_function" "pretoken" {
   function_name    = local.function_name
-  role             = aws_iam_role.pretoken.arn
+  role             = data.aws_iam_role.pretoken.arn
   runtime          = "python3.12"
   handler          = "handler.lambda_handler"
   filename         = data.archive_file.pretoken.output_path

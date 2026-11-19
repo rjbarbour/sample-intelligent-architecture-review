@@ -228,27 +228,52 @@ def _build_whole_doc_message(
             full_doc_text_parts.append(f"[Page {i}]\n{t.strip()}")
     full_doc_text = "\n\n".join(full_doc_text_parts)
 
-    # Pick which pages get image embeds. Prefer diagram-bearing pages
-    # (caller's hint) but fill remaining slots with sequential pages
-    # so we still get visual context on the doc as a whole.
+    # Custom icon legend — teach the validator the org's on-prem
+    # glyph vocabulary so it reads proprietary icons the same way extraction
+    # did. Text dictionary appended to the prompt; icon-image few-shot blocks
+    # placed before the page images so they read as a reference legend.
+    # Best-effort: no legend → no change.
+    legend_text = ""
+    legend_candidates: list = []
+    try:
+        from app.services.icon_legend_inject import (
+            build_legend_text,
+            build_legend_image_blocks,
+        )
+        legend_text = build_legend_text(hosting_scope=hosting_scope)
+        if legend_text:
+            from app.services.document_store import document_store
+            legend_candidates = build_legend_image_blocks(
+                hosting_scope=hosting_scope, doc_store=document_store
+            )
+    except Exception:  # noqa: BLE001
+        legend_text = ""
+        legend_candidates = []
+
+    # Converse JSON carries each image as base64. Bound those bytes
+    # independently of the image count, reserving room for text and JSON.
+    remaining = MAX_IMAGE_PAYLOAD_BYTES
     selected_image_idx: list[int] = []
-    seen: set[int] = set()
-    for idx in diagram_page_indices:
-        if idx < len(page_pngs) and idx not in seen:
-            selected_image_idx.append(idx)
-            seen.add(idx)
-            if len(selected_image_idx) == MAX_IMAGES_PER_CALL:
-                break
-    if len(selected_image_idx) < MAX_IMAGES_PER_CALL:
-        # Top-up with any remaining pages in order, until cap.
-        for idx in range(len(page_pngs)):
-            if idx in seen:
-                continue
-            selected_image_idx.append(idx)
-            seen.add(idx)
-            if len(selected_image_idx) == MAX_IMAGES_PER_CALL:
-                break
+    for idx in dict.fromkeys([*diagram_page_indices, *range(len(page_pngs))]):
+        if not 0 <= idx < len(page_pngs) or not page_pngs[idx]:
+            continue
+        image_size = _encoded_size(page_pngs[idx])
+        if image_size > remaining:
+            continue
+        selected_image_idx.append(idx)
+        remaining -= image_size
+        if len(selected_image_idx) == MAX_IMAGES_PER_CALL:
+            break
     selected_image_idx.sort()
+
+    legend_image_blocks = []
+    for block in legend_candidates:
+        if len(selected_image_idx) + len(legend_image_blocks) >= MAX_IMAGES_PER_CALL:
+            break
+        image_size = _encoded_size(block["image"]["source"]["bytes"])
+        if image_size <= remaining:
+            legend_image_blocks.append(block)
+            remaining -= image_size
 
     image_pages_note = (
         f"Page images attached (in order): "
@@ -277,28 +302,6 @@ def _build_whole_doc_message(
         f"\"affected_components\": [...]}}. "
         f"Return a JSON array of these objects, one per rule."
     )
-
-    # Custom icon legend — teach the validator the org's on-prem
-    # glyph vocabulary so it reads proprietary icons the same way extraction
-    # did. Text dictionary appended to the prompt; icon-image few-shot blocks
-    # placed before the page images so they read as a reference legend.
-    # Best-effort: no legend → no change.
-    legend_text = ""
-    legend_image_blocks: list = []
-    try:
-        from app.services.icon_legend_inject import (
-            build_legend_text,
-            build_legend_image_blocks,
-        )
-        legend_text = build_legend_text(hosting_scope=hosting_scope)
-        if legend_text:
-            from app.services.document_store import document_store
-            legend_image_blocks = build_legend_image_blocks(
-                hosting_scope=hosting_scope, doc_store=document_store
-            )
-    except Exception:  # noqa: BLE001
-        legend_text = ""
-        legend_image_blocks = []
 
     text_with_legend = f"{text_block}\n\n{legend_text}" if legend_text else text_block
     content: list[dict] = [{"text": text_with_legend}]
@@ -341,6 +344,12 @@ RULES_PER_PAGE_BATCH = 5
 # that goes in as text-only. Rules are batched so we don't blow
 # the output token budget; one Converse call per rule batch.
 MAX_IMAGES_PER_CALL = 20
+MAX_IMAGE_PAYLOAD_BYTES = 2_000_000
+
+
+def _encoded_size(image: bytes) -> int:
+    return 4 * ((len(image) + 2) // 3)
+
 RULES_PER_DOC_BATCH = int(os.getenv("RULES_PER_DOC_BATCH", "8"))
 
 # Per-path thinking kill switches. A single global flag would force
@@ -705,7 +714,7 @@ async def _validate_pdf_multimodal_async(
     logger.info(
         f"whole-doc multimodal: {len(batches)} rule-batch calls "
         f"({len(page_pngs)} pages, {len(diagram_indices)} with diagrams, "
-        f"{min(MAX_IMAGES_PER_CALL, len(page_pngs))} images per call), "
+        f"up to {MAX_IMAGE_PAYLOAD_BYTES} encoded image bytes per call), "
         f"concurrency={max_concurrent}"
     )
 
@@ -714,7 +723,7 @@ async def _validate_pdf_multimodal_async(
     #   - temperature=1.0
     #   - maxTokens > budget_tokens (otherwise ValidationException)
     # Falls back to temperature=0.0 + maxTokens=4000 when disabled.
-    thinking_on = _thinking_enabled_multimodal()
+    thinking_on = _thinking_enabled_multimodal() and "anthropic.claude-" in model_id
     inference_temp = 1.0 if thinking_on else 0.0
     # When thinking is on, max_tokens must exceed budget_tokens. We
     # reserve ~4K for the actual JSON answer beyond the thinking budget.

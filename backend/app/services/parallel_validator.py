@@ -1275,6 +1275,7 @@ async def validate_document(
     total_input_tokens = 0
     total_output_tokens = 0
     total_calls = 0
+    failed_calls = 0
     for coro in asyncio.as_completed(rule_tasks):
         # Cooperative cancellation checkpoint: between rule completions,
         # if the user cancelled, stop launching more work, cancel the
@@ -1296,6 +1297,8 @@ async def validate_document(
         for p in partials:
             total_input_tokens += p.input_tokens
             total_output_tokens += p.output_tokens
+            if p.status == "error":
+                failed_calls += 1
         # Fold the verify pass's Bedrock usage into the run totals so cost
         # telemetry + the CloudWatch metric aren't under-reported.
         total_input_tokens += v_in
@@ -1314,6 +1317,9 @@ async def validate_document(
     if is_cancel_requested(validation_id):
         logger.info(f"Validation {validation_id} cancelled by user (post-loop)")
         raise ValidationCancelled(validation_id)
+
+    if total_calls and failed_calls == total_calls:
+        raise RuntimeError("The model could not evaluate any rules. Run the validation again.")
 
     # Decision tree + architecture rollup (shared across all
     # validation paths via resolve_decision_tree).

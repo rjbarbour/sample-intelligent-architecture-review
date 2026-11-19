@@ -64,27 +64,17 @@ data "aws_iam_policy_document" "ecs_task_assume" {
   }
 }
 
-resource "aws_iam_role" "task_execution" {
-  name               = "${var.project_name}-${var.environment}-task-execution"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
-
-  tags = var.tags
+data "aws_iam_role" "task_execution" {
+  name = "${var.project_name}-${var.environment}-task-execution"
 }
 
-resource "aws_iam_role_policy_attachment" "task_execution" {
-  role       = aws_iam_role.task_execution.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
 
 ###############################################################################
 # Task Role (application permissions)
 ###############################################################################
 
-resource "aws_iam_role" "task_role" {
-  name               = "${var.project_name}-${var.environment}-task-role"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
-
-  tags = var.tags
+data "aws_iam_role" "task_role" {
+  name = "${var.project_name}-${var.environment}-task-role"
 }
 
 ###############################################################################
@@ -114,18 +104,7 @@ data "aws_iam_policy_document" "dynamodb_access" {
   }
 }
 
-resource "aws_iam_policy" "dynamodb_access" {
-  name        = "${var.project_name}-${var.environment}-dynamodb-access"
-  description = "Policy for DynamoDB table access"
-  policy      = data.aws_iam_policy_document.dynamodb_access.json
 
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "dynamodb_to_task_role" {
-  role       = aws_iam_role.task_role.name
-  policy_arn = aws_iam_policy.dynamodb_access.arn
-}
 
 # The tables are encrypted with the customer-managed key, and DynamoDB uses the
 # CALLER's permissions on that key for every read and write. Scoped to the one
@@ -152,18 +131,7 @@ data "aws_iam_policy_document" "data_key_access" {
   }
 }
 
-resource "aws_iam_policy" "data_key_access" {
-  name        = "${var.project_name}-${var.environment}-data-key-access"
-  description = "Use the application data key for DynamoDB reads and writes"
-  policy      = data.aws_iam_policy_document.data_key_access.json
 
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "data_key_to_task_role" {
-  role       = aws_iam_role.task_role.name
-  policy_arn = aws_iam_policy.data_key_access.arn
-}
 
 ###############################################################################
 # Task Role Policies - S3 Access
@@ -188,18 +156,7 @@ data "aws_iam_policy_document" "s3_access" {
   }
 }
 
-resource "aws_iam_policy" "s3_access" {
-  name        = "${var.project_name}-${var.environment}-s3-access"
-  description = "Policy for S3 bucket access"
-  policy      = data.aws_iam_policy_document.s3_access.json
 
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "s3_to_task_role" {
-  role       = aws_iam_role.task_role.name
-  policy_arn = aws_iam_policy.s3_access.arn
-}
 
 ###############################################################################
 # Task Role Policies - SSM read (Cognito secrets, etc)
@@ -233,66 +190,13 @@ data "aws_iam_policy_document" "ssm_read" {
   }
 }
 
-resource "aws_iam_policy" "ssm_read" {
-  name        = "${var.project_name}-${var.environment}-ssm-read"
-  description = "Read project SSM parameters and decrypt SecureString values"
-  policy      = data.aws_iam_policy_document.ssm_read.json
 
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "ssm_read_to_task_role" {
-  role       = aws_iam_role.task_role.name
-  policy_arn = aws_iam_policy.ssm_read.arn
-}
 
 # Tracing: let the task export OpenTelemetry spans to X-Ray and publish the
 # derived metrics. None of these X-Ray actions accept a resource ARN, so "*" is
 # the only expressible scope (same rationale as the Bedrock ListFoundationModels
 # statement in modules/bedrock).
-resource "aws_iam_policy" "tracing" {
-  count       = var.enable_tracing ? 1 : 0
-  name        = "${var.project_name}-${var.environment}-tracing"
-  description = "Export OpenTelemetry spans to AWS X-Ray and emit trace metrics"
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          # PutSpans is the action behind the OTLP ingestion endpoint
-          # (https://xray.<region>.amazonaws.com/v1/traces) the ADOT distro posts
-          # to in agent-observability mode. PutTraceSegments is kept for the
-          # classic segment API so the task still works if the exporter is
-          # repointed at a collector.
-          "xray:PutSpans",
-          "xray:PutTraceSegments",
-          "xray:PutTelemetryRecords",
-          "xray:GetSamplingRules",
-          "xray:GetSamplingTargets",
-          "xray:GetSamplingStatisticSummaries",
-        ]
-        Resource = "*"
-      },
-      {
-        # Application Signals derives service-level metrics from the spans.
-        Effect   = "Allow"
-        Action   = ["cloudwatch:PutMetricData"]
-        Resource = "*"
-        Condition = {
-          StringEquals = { "cloudwatch:namespace" = ["ApplicationSignals", "AWS/ApplicationSignals"] }
-        }
-      },
-    ]
-  })
-  tags = var.tags
-}
 
-resource "aws_iam_role_policy_attachment" "tracing_to_task_role" {
-  count      = var.enable_tracing ? 1 : 0
-  role       = aws_iam_role.task_role.name
-  policy_arn = aws_iam_policy.tracing[0].arn
-}
 
 ###############################################################################
 # Task Definition
@@ -304,8 +208,8 @@ resource "aws_ecs_task_definition" "app" {
   requires_compatibilities = ["FARGATE"]
   cpu                      = var.task_cpu
   memory                   = var.task_memory
-  execution_role_arn       = aws_iam_role.task_execution.arn
-  task_role_arn            = aws_iam_role.task_role.arn
+  execution_role_arn       = data.aws_iam_role.task_execution.arn
+  task_role_arn            = data.aws_iam_role.task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -842,10 +746,8 @@ resource "aws_security_group" "pptx_converter" {
 # Dedicated task role with no permissions. We want to make
 # the no-creds posture explicit; future narrow permissions can be
 # added here without disturbing the main API role.
-resource "aws_iam_role" "pptx_converter_task" {
-  name               = "${var.project_name}-${var.environment}-pptx-converter-task-role"
-  assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
-  tags               = var.tags
+data "aws_iam_role" "pptx_converter_task" {
+  name = "${var.project_name}-${var.environment}-pptx-converter-task-role"
 }
 
 resource "aws_ecs_task_definition" "pptx_converter" {
@@ -854,8 +756,8 @@ resource "aws_ecs_task_definition" "pptx_converter" {
   network_mode             = "awsvpc"
   cpu                      = var.pptx_task_cpu
   memory                   = var.pptx_task_memory
-  execution_role_arn       = aws_iam_role.task_execution.arn
-  task_role_arn            = aws_iam_role.pptx_converter_task.arn
+  execution_role_arn       = data.aws_iam_role.task_execution.arn
+  task_role_arn            = data.aws_iam_role.pptx_converter_task.arn
 
   volume {
     name = "pptx-tmp"

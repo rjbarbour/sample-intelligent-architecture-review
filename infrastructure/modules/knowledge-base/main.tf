@@ -49,11 +49,8 @@ data "aws_iam_policy_document" "kb_assume_role" {
   }
 }
 
-resource "aws_iam_role" "kb_role" {
-  name               = "${var.project_name}-${var.environment}-kb-role"
-  assume_role_policy = data.aws_iam_policy_document.kb_assume_role.json
-
-  tags = var.tags
+data "aws_iam_role" "kb_role" {
+  name = "${var.project_name}-${var.environment}-kb-role"
 }
 
 data "aws_iam_policy_document" "kb_policy" {
@@ -102,11 +99,6 @@ data "aws_iam_policy_document" "kb_policy" {
   }
 }
 
-resource "aws_iam_role_policy" "kb_policy" {
-  name   = "${var.project_name}-${var.environment}-kb-policy"
-  role   = aws_iam_role.kb_role.id
-  policy = data.aws_iam_policy_document.kb_policy.json
-}
 
 ###############################################################################
 # OpenSearch Serverless Collection (managed by KB)
@@ -163,7 +155,7 @@ resource "aws_opensearchserverless_access_policy" "kb_data" {
         }
       ]
       Principal = [
-        aws_iam_role.kb_role.arn,
+        data.aws_iam_role.kb_role.arn,
         local.caller_principal_arn,
       ]
     }
@@ -224,7 +216,7 @@ resource "null_resource" "kb_index_bootstrap" {
 
 resource "aws_bedrockagent_knowledge_base" "main" {
   name     = local.kb_name
-  role_arn = aws_iam_role.kb_role.arn
+  role_arn = data.aws_iam_role.kb_role.arn
 
   knowledge_base_configuration {
     type = "VECTOR"

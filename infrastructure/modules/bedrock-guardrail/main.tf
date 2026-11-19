@@ -137,16 +137,3 @@ data "aws_iam_policy_document" "guardrail_access" {
     resources = [aws_bedrock_guardrail.main.guardrail_arn]
   }
 }
-
-resource "aws_iam_policy" "guardrail_access" {
-  name        = "${var.project_name}-${var.environment}-guardrail-access"
-  description = "Allows the ECS task role to apply the Bedrock guardrail."
-  policy      = data.aws_iam_policy_document.guardrail_access.json
-
-  tags = var.tags
-}
-
-resource "aws_iam_role_policy_attachment" "guardrail_access" {
-  role       = var.ecs_task_role_name
-  policy_arn = aws_iam_policy.guardrail_access.arn
-}

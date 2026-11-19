@@ -101,5 +101,5 @@ output "cloudtrail_bucket" {
 
 output "spans_log_group" {
   description = "CloudWatch log group where Transaction Search indexes trace spans. Query with Logs Insights to inspect agent behaviour."
-  value       = module.tracing.spans_log_group
+  value       = ""
 }
